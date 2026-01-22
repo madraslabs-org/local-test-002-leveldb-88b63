@@ -45,7 +45,8 @@ TEST(Issue320, Test) {
   bool delete_before_put = false;
   bool keep_snapshots = true;
 
-  std::vector<std::pair<std::string, std::string>*> test_map(10000, nullptr);
+  std::vector<std::unique_ptr<std::pair<std::string, std::string>>> test_map(
+      10000);
   std::vector<Snapshot const*> snapshots(100, nullptr);
 
   DB* db;
@@ -65,7 +66,7 @@ TEST(Issue320, Test) {
   ReadOptions readOptions;
   while (count < 200000) {
     if ((++count % 1000) == 0) {
-      cout << "count: " << count << endl;
+      std::cout << "count: " << count << std::endl;
     }
 
     int index = GenerateRandomNumber(test_map.size());
@@ -73,24 +74,25 @@ TEST(Issue320, Test) {
 
     if (test_map[index] == nullptr) {
       num_items++;
-      test_map[index] = new std::pair<std::string, std::string>(
-          CreateRandomString(index), CreateRandomString(index));
+      test_map[index].reset(new std::pair<std::string, std::string>(
+          CreateRandomString(index), CreateRandomString(index)));
       batch.Put(test_map[index]->first, test_map[index]->second);
     } else {
       ASSERT_OK(db->Get(readOptions, test_map[index]->first, &old_value));
       if (old_value != test_map[index]->second) {
-        cout << "ERROR incorrect value returned by Get" << endl;
-        cout << "  count=" << count << endl;
-        cout << "  old value=" << old_value << endl;
-        cout << "  test_map[index]->second=" << test_map[index]->second << endl;
-        cout << "  test_map[index]->first=" << test_map[index]->first << endl;
-        cout << "  index=" << index << endl;
+        std::cout << "ERROR incorrect value returned by Get" << std::endl;
+        std::cout << "  count=" << count << std::endl;
+        std::cout << "  old value=" << old_value << std::endl;
+        std::cout << "  test_map[index]->second=" << test_map[index]->second
+                  << std::endl;
+        std::cout << "  test_map[index]->first=" << test_map[index]->first
+                  << std::endl;
+        std::cout << "  index=" << index << std::endl;
         ASSERT_EQ(old_value, test_map[index]->second);
       }
 
       if (num_items >= target_size && GenerateRandomNumber(100) > 30) {
         batch.Delete(test_map[index]->first);
-        delete test_map[index];
         test_map[index] = nullptr;
         --num_items;
       } else {
@@ -114,13 +116,6 @@ TEST(Issue320, Test) {
   for (Snapshot const* snapshot : snapshots) {
     if (snapshot) {
       db->ReleaseSnapshot(snapshot);
-    }
-  }
-
-  for (size_t i = 0; i < test_map.size(); ++i) {
-    if (test_map[i] != nullptr) {
-      delete test_map[i];
-      test_map[i] = nullptr;
     }
   }
 
